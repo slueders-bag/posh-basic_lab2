@@ -1,19 +1,18 @@
-# Software Inventory
+# Event Log Parsing to fetch Logon and Logoff events
 
-# Variables
-$allApps = @()
+$logs = get-eventlog system -ComputerName $env:COMPUTERNAME -source Microsoft-Windows-Winlogon -After (Get-Date).AddDays(-7);
+$res = @()
 
-# call WMI Software packages
-$win32_product = @(get-wmiobject -class 'Win32_Product' -computer $env:COMPUTERNAME)
-
-#store properties to object and add it to array
-foreach ($app in $win32_product){
-    $applications = New-Object PSObject -Property @{
-        Name = $app.Name
-        Version = $app.Version
+ForEach ($log in $logs){
+    if($log.instanceid -eq 7001)
+        {$type = "Logon"}
+        
+    Elseif($log.instanceid -eq 7002)
+        {$type="Logoff"}
+        
+    Else {Continue}
+    
+    $res += New-Object PSObject -Property @{Time = $log.TimeWritten; "Event" = $type; User = (New-Object System.Security.Principal.SecurityIdentifier $Log.ReplacementStrings[1]).Translate([System.Security.Principal.NTAccount])}
     }
-    $allApps +=$applications
-}
-# sort and export
-$allApps | select name,version | sort name
-$allApps | select name,version | sort name | ConvertTo-Html -Fragment -As Table -PreContent “<h1>Installed Software Report</h1>” | Out-File C:\temp\softwareInventory.html
+
+$res
